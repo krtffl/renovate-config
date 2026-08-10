@@ -1,0 +1,63 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "npm fragment. Every npm repo in this org is an application or a site — none publish to the",
+    "registry — so ranges are bumped in package.json rather than only in the lockfile, which keeps",
+    "the manifest an honest record of what actually ships."
+  ],
+  "postUpdateOptions": ["npmDedupe"],
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "addLabels": ["npm"]
+    },
+    {
+      "description": "Apps, not libraries: move the declared range too.",
+      "matchManagers": ["npm"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "One PR per repo for every non-major npm change.",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "npm non-major",
+      "groupSlug": "npm-non-major"
+    },
+    {
+      "description": "Astro core and its integrations are released in lockstep and break apart if split.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["astro", "@astrojs/**"],
+      "groupName": "astro",
+      "groupSlug": "astro"
+    },
+    {
+      "description": "Cloudflare toolchain moves together: wrangler, the Workers types, and the Workers adapters.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "wrangler",
+        "@cloudflare/**",
+        "miniflare",
+        "unenv"
+      ],
+      "groupName": "cloudflare toolchain",
+      "groupSlug": "cloudflare"
+    },
+    {
+      "description": "The Node engines range encodes which runtime the site is built for — a deliberate decision, not a dependency.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["engines"],
+      "enabled": false
+    },
+    {
+      "description": "The .nvmrc pin follows the engines range; move it by hand when the engines range moves.",
+      "matchManagers": ["nvm"],
+      "enabled": false
+    },
+    {
+      "description": "Dev-only tooling is chore(deps), never fix(deps), regardless of what config:recommended infers.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "semanticCommitType": "chore"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Tier A-narrow. For repos whose pull_request CI is a build or a lint, not a test suite —",
+    "roma-aeterna (astro check + link check + build), krtffl.dev (hugo build), torrons-infra",
+    "(workflow pin check + shell/dockerfile lint).",
+    "A build that compiles proves the dependency still type-checks. It does not prove the page still",
+    "renders correctly, and for the site repos a merge to main deploys straight to Cloudflare. So the",
+    "automerge scope here stops at things that cannot reach a visitor: CI action versions, dev-only",
+    "packages, and lockfile refreshes. Production dependencies — even patches — get a human.",
+    "Promote a repo from this preset to :automerge once it has a test job that would fail on a bad",
+    "dependency."
+  ],
+  "extends": ["github>krtffl/renovate-config"],
+
+  "automerge": false,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": false,
+  "ignoreTests": false,
+  "automergeSchedule": ["* 4-9 * * 1-5"],
+  "rebaseWhen": "behind-base-branch",
+
+  "lockFileMaintenance": {
+    "automerge": true
+  },
+
+  "vulnerabilityAlerts": {
+    "automerge": false
+  },
+
+  "packageRules": [
+    {
+      "description": "CI action versions and digests. A broken action fails the next workflow run and never reaches a visitor.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "automerge": true
+    },
+    {
+      "description": "Dev-only npm tooling: linters, formatters, test runners, type packages.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "0.x minors are breaking under semver even in dev tooling.",
+      "matchCurrentVersion": "/^0\\./",
+      "matchUpdateTypes": ["minor"],
+      "automerge": false
+    },
+    {
+      "description": "Majors are always a human decision.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Runtime dependencies ship to visitors. A build passing is not evidence the site is still correct.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["dependencies"],
+      "automerge": false
+    },
+    {
+      "description": "Nothing docker is automerged — no repo builds its image on a pull_request.",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "automerge": false
+    }
+  ]
+}

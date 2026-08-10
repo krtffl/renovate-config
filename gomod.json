@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Go modules fragment. Indirect dependencies are noise in a go.mod PR feed, so they are switched",
+    "off except when a vulnerability alert names one — that is exactly what",
+    "security:gomodIndirectSecurityUpdates encodes. gomodTidy keeps go.sum honest after every bump;",
+    "gomodMassage lets Renovate parse go.mod files that use replace directives."
+  ],
+  "extends": ["security:gomodIndirectSecurityUpdates"],
+  "postUpdateOptions": ["gomodTidy", "gomodMassage"],
+  "packageRules": [
+    {
+      "matchManagers": ["gomod"],
+      "addLabels": ["go"]
+    },
+    {
+      "description": "One PR per repo for every non-major Go module change.",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "go non-major",
+      "groupSlug": "gomod-non-major"
+    },
+    {
+      "description": "The go directive and the toolchain line pick a language version — that is a platform decision, not a dependency bump. CI pins the same version, so drifting them apart silently breaks the build.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["golang", "toolchain"],
+      "enabled": false
+    }
+  ]
+}

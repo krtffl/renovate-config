@@ -1,0 +1,106 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "krtffl org baseline. Every repo extends exactly this, or one of the tier presets that extends it.",
+    "Validated against renovate-schema.json x-renovate-version 44.11.8.",
+    "Ecosystem behaviour lives in the six manager fragments extended below; this file only holds",
+    "cross-cutting policy: cadence, commit style, grouping, rate limits, and the security fast lane."
+  ],
+  "extends": [
+    "config:recommended",
+    "security:openssf-scorecard",
+    "github>krtffl/renovate-config:npm",
+    "github>krtffl/renovate-config:gomod",
+    "github>krtffl/renovate-config:cargo",
+    "github>krtffl/renovate-config:python",
+    "github>krtffl/renovate-config:github-actions",
+    "github>krtffl/renovate-config:docker"
+  ],
+
+  "timezone": "Europe/Madrid",
+  "schedule": ["* 4-7 * * 1"],
+
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Dependency Dashboard",
+  "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
+  "configMigration": true,
+
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "commitMessageLowerCase": "auto",
+
+  "separateMajorMinor": true,
+  "separateMinorPatch": false,
+  "separateMultipleMajor": false,
+
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "branchConcurrentLimit": 5,
+
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+
+  "labels": ["dependencies"],
+  "prBodyNotes": [
+    "Raised by Renovate from `github>krtffl/renovate-config`. Change policy there, not here."
+  ],
+
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "description": [
+      "Fast lane. Renovate documents that vulnerabilityAlerts PRs ignore branchConcurrentLimit,",
+      "commitHourlyLimit, prConcurrentLimit, prHourlyLimit and schedule, so these PRs jump the",
+      "Monday-only queue on their own. minimumReleaseAge is nulled so the 3-day quarantine that",
+      "applies to routine updates does not delay a fix. Requires GitHub Dependabot alerts to be ON",
+      "for the repo and the Renovate app to hold read access to Dependabot alerts."
+    ],
+    "enabled": true,
+    "schedule": [],
+    "minimumReleaseAge": null,
+    "prCreation": "immediate",
+    "rangeStrategy": "update-lockfile",
+    "vulnerabilityFixStrategy": "lowest",
+    "commitMessageSuffix": "[SECURITY]",
+    "semanticCommitType": "fix",
+    "labels": ["dependencies", "security"],
+    "dependencyDashboardApproval": false,
+    "automerge": false
+  },
+
+  "lockFileMaintenance": {
+    "description": "Refresh transitive pins on the first Monday of the month, outside the normal update flow.",
+    "enabled": true,
+    "schedule": ["* 4-7 1-7 * 1"],
+    "commitMessageAction": "refresh lockfiles",
+    "automerge": false
+  },
+
+  "packageRules": [
+    {
+      "description": "Majors never join a group and never move on the 3-day quarantine — they get a week and their own PR.",
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "addLabels": ["major"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "0.x minors are breaking under semver — treat them like majors: ungrouped, own PR.",
+      "matchCurrentVersion": "/^0\\./",
+      "matchUpdateTypes": ["minor"],
+      "groupName": null,
+      "addLabels": ["breaking-0x"]
+    },
+    {
+      "description": "Vendored, generated and fixture trees are not dependencies of this repo.",
+      "matchFileNames": [
+        "**/vendor/**",
+        "**/testdata/**",
+        "**/fixtures/**",
+        "**/__fixtures__/**",
+        "**/dist/**"
+      ],
+      "enabled": false
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Docker fragment, covering both Dockerfiles and compose files. docker:pinDigests turns",
+    "`FROM golang:1.25-alpine` into `FROM golang:1.25-alpine@sha256:...`, which is what makes an",
+    "image build reproducible and what makes a base-image CVE visible as a diff rather than as a",
+    "silent re-pull. Base-image majors are held for approval because they move the distro, the libc",
+    "and usually the language runtime at once."
+  ],
+  "extends": ["docker:pinDigests"],
+  "packageRules": [
+    {
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "addLabels": ["docker"]
+    },
+    {
+      "description": "Digest refreshes are how base-image security patches arrive — one PR, every week.",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["digest", "pinDigest"],
+      "groupName": "docker digests",
+      "groupSlug": "docker-digests"
+    },
+    {
+      "description": "Non-major tag bumps travel together.",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "docker non-major",
+      "groupSlug": "docker-non-major"
+    },
+    {
+      "description": "A base-image major changes the distro and the runtime underneath the app. Park it on the dashboard until someone chooses to do it.",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "dependencyDashboardApproval": true,
+      "addLabels": ["major"]
+    },
+    {
+      "description": "Language runtime images must stay in step with the toolchain the repo actually builds with (go.mod go directive, .nvmrc, rust-toolchain). Renovate proposes; a human confirms they still match.",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchPackageNames": ["golang", "node", "rust", "python", "**/golang", "**/node", "**/rust", "**/python"],
+      "matchUpdateTypes": ["major", "minor"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}

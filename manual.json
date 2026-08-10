@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Tier C. For repos with no pull_request-triggered CI, or with PR CI that is currently red.",
+    "Nothing merges without a human. automerge is already false in the base preset — it is repeated",
+    "here so that reading this one file tells you the whole story, and so that a future edit to the",
+    "base cannot quietly switch it on for repos that never earned it.",
+    "Majors and lockfile refreshes are parked behind the dashboard so the PR list stays short enough",
+    "that a red check is actually noticed."
+  ],
+  "extends": ["github>krtffl/renovate-config"],
+
+  "automerge": false,
+  "ignoreTests": false,
+  "platformAutomerge": false,
+  "prConcurrentLimit": 2,
+  "rebaseWhen": "conflicted",
+
+  "lockFileMaintenance": {
+    "enabled": true,
+    "dependencyDashboardApproval": true,
+    "automerge": false
+  },
+
+  "packageRules": [
+    {
+      "description": "Majors wait on the dashboard until someone ticks them.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "Belt and braces: no rule anywhere may turn on automerge in this tier.",
+      "matchPackageNames": ["*"],
+      "automerge": false
+    }
+  ]
+}

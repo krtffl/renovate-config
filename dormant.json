@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Tier D. For repos nobody is developing: last push in 2023-2024, no CI, no deployment.",
+    "Routine version updates on a repo like this are pure noise — nobody is going to review a",
+    "PR bumping a linter in a repo they abandoned two years ago, and the PRs age into permanent",
+    "merge conflicts. security:only-security-updates disables every package by default and lets",
+    "only vulnerability-driven updates through, so the repo stays quiet until something is",
+    "actually exploitable. Combined with osvVulnerabilityAlerts from the base preset this still",
+    "catches direct-dependency CVEs without GitHub Advanced Security.",
+    "Nothing here is automerged: these repos have no tests at all."
+  ],
+  "extends": [
+    "github>krtffl/renovate-config",
+    "security:only-security-updates"
+  ],
+
+  "automerge": false,
+  "ignoreTests": false,
+  "platformAutomerge": false,
+  "schedule": ["* 4-7 1-7 * 1"],
+  "prConcurrentLimit": 2,
+  "prHourlyLimit": 1,
+  "rebaseWhen": "conflicted",
+
+  "lockFileMaintenance": {
+    "enabled": false
+  },
+
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": [],
+    "automerge": false
+  }
+}

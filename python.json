@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Python fragment. There is no separate `uv` manager — Renovate's pep621 manager handles",
+    "pyproject.toml plus uv, pdm, hatch and pixi, and it maintains uv.lock and pdm.lock through",
+    "lockFileMaintenance by shelling out to the real CLI. anomalog and the two yodidac tool",
+    "packages are uv projects; casahouse has one loose requirements.txt under business-tools."
+  ],
+  "extends": ["security:minimumReleaseAgePypi"],
+  "packageRules": [
+    {
+      "matchManagers": ["pep621", "pip_requirements", "pip-compile", "poetry"],
+      "addLabels": ["python"]
+    },
+    {
+      "description": "One PR per repo for every non-major Python change, across pyproject.toml and requirements.txt alike.",
+      "matchManagers": ["pep621", "pip_requirements", "pip-compile", "poetry"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "python non-major",
+      "groupSlug": "python-non-major"
+    },
+    {
+      "description": "requires-python declares the supported interpreter range — moving it is a support-policy change, not a dependency bump.",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["requires-python"],
+      "enabled": false
+    },
+    {
+      "description": "Test and lint tooling is chore(deps).",
+      "matchManagers": ["pep621", "pip_requirements", "pip-compile", "poetry"],
+      "matchPackageNames": [
+        "pytest",
+        "pytest-**",
+        "ruff",
+        "mypy",
+        "types-**"
+      ],
+      "semanticCommitType": "chore"
+    }
+  ]
+}

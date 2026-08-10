@@ -1,0 +1,85 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Tier A. Only for repos that satisfy all three preconditions, verified per repo before adoption:",
+    "  1. a workflow with a `pull_request:` trigger, so Renovate's branch actually produces check runs;",
+    "  2. that workflow runs a real gate (tests, type-check or build — not just a lint of unrelated files);",
+    "  3. the gate is currently green on the default branch, so a red PR means the update, not the backlog.",
+    "Renovate refuses to automerge unless it sees a passing branch status, and a commit with zero",
+    "check runs reports combined state `pending`, which Renovate maps to yellow — so a repo without",
+    "PR CI does not silently automerge, it stalls. That is a stuck-branch problem, not a safety net:",
+    "this preset is still only applied where CI exists.",
+    "ignoreTests stays false. It must never be set in this org.",
+    "Scope is deliberately narrow: patch, lockfile, digest, CI actions and dev-only dependencies.",
+    "Anything that can reach a user at runtime — a production minor, any major, any 0.x minor, and",
+    "every security fix — is left for a human.",
+    "platformAutomerge is off on purpose. GitHub only offers its native auto-merge when a PR is not",
+    "already mergeable, which means at least one required status check or required review. Private",
+    "repos on this account cannot have branch protection or rulesets (the API returns 'Upgrade to",
+    "GitHub Pro'), and the public repos have none configured, so the native path would fail on every",
+    "PR and Renovate would fall back to merging itself anyway. Turn this back on per repo once a",
+    "ruleset requiring the CI check exists — which is free on the public repos."
+  ],
+  "extends": ["github>krtffl/renovate-config"],
+
+  "automerge": false,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": false,
+  "ignoreTests": false,
+  "automergeSchedule": ["* 4-9 * * 1-5"],
+  "rebaseWhen": "behind-base-branch",
+
+  "lockFileMaintenance": {
+    "automerge": true
+  },
+
+  "vulnerabilityAlerts": {
+    "description": "Security fixes are the one class where a wrong bump loops or breaks production quietly. Reviewed by hand, always.",
+    "automerge": false
+  },
+
+  "packageRules": [
+    {
+      "description": "Patch-level changes to anything, once CI is green.",
+      "matchUpdateTypes": ["patch", "pin", "digest", "pinDigest"],
+      "automerge": true
+    },
+    {
+      "description": "CI actions: non-major and digest refreshes. A broken action fails loudly on the next run and never reaches production.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "automerge": true
+    },
+    {
+      "description": "Dev-only npm tooling: linters, test runners, type packages.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Dev-only crates.",
+      "matchManagers": ["cargo"],
+      "matchDepTypes": ["dev-dependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "0.x minors are breaking under semver, whatever the update type says.",
+      "matchCurrentVersion": "/^0\\./",
+      "matchUpdateTypes": ["minor"],
+      "automerge": false
+    },
+    {
+      "description": "Majors are always a human decision.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Nothing docker is automerged, digests included. No repo in this org builds its image on a pull_request — mojodojo and casahouse both gate build-and-push on the push/tag event — so a green PR proves nothing about a new base layer. The image only breaks after the merge, on the deploy.",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "automerge": false
+    }
+  ]
+}

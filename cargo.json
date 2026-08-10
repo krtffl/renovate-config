@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Cargo fragment. Four of the five Rust repos are Cargo workspaces (logmole, mcp-servers,",
+    "stintlab, tablero, fontes-antiquae), so a single group keeps one PR per workspace rather than",
+    "one per member crate. security:minimumReleaseAgeCrate adds the crates.io quarantine window on",
+    "top of the org-wide 3 days."
+  ],
+  "extends": ["security:minimumReleaseAgeCrate"],
+  "packageRules": [
+    {
+      "matchManagers": ["cargo"],
+      "addLabels": ["rust"]
+    },
+    {
+      "description": "One PR per workspace for every non-major crate change.",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "cargo non-major",
+      "groupSlug": "cargo-non-major"
+    },
+    {
+      "description": "Dev-dependencies (criterion, proptest, insta …) never reach the shipped binary.",
+      "matchManagers": ["cargo"],
+      "matchDepTypes": ["dev-dependencies"],
+      "semanticCommitType": "chore",
+      "groupName": "cargo dev-dependencies",
+      "groupSlug": "cargo-dev"
+    },
+    {
+      "description": "Build-dependencies affect what gets compiled into the artifact — keep them out of the dev group.",
+      "matchManagers": ["cargo"],
+      "matchDepTypes": ["build-dependencies"],
+      "semanticCommitType": "chore"
+    }
+  ]
+}

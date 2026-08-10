@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "GitHub Actions fragment. helpers:pinGitHubActionDigests sets pinDigests on depType `action`,",
+    "so every `uses:` becomes owner/action@<40-hex-sha> with a `# vX.Y.Z` comment that Renovate",
+    "maintains. This is already the house style in mojodojo, casahouse, krtffl.dev and",
+    "torrons-infra — and torrons-infra's `check-pins` job fails CI on any unpinned `uses:`, so the",
+    "org preset has to produce SHA-pinned refs or that repo's own CI rejects the PR.",
+    "Reusable workflows called with `uses: ./.github/workflows/...` are local and are not touched."
+  ],
+  "extends": ["helpers:pinGitHubActionDigests"],
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "addLabels": ["github-actions"],
+      "semanticCommitType": "ci"
+    },
+    {
+      "description": "Digest-only refreshes are mechanical — one PR for all of them.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["digest", "pinDigest", "pin"],
+      "groupName": "github actions digests",
+      "groupSlug": "gha-digests"
+    },
+    {
+      "description": "Non-major action version bumps share a PR with each other but not with the digest refreshes.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "github actions",
+      "groupSlug": "gha-non-major"
+    },
+    {
+      "description": "Action majors (actions/checkout v5 to v6, setup-node v6 to v7 …) change inputs and Node runtimes — always reviewed.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "addLabels": ["major"]
+    },
+    {
+      "description": "The Rust toolchain pinned via dtolnay/rust-toolchain@1.94 is a compiler version, not an action release. Moving it changes the MSRV, which fontes-antiquae asserts on.",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["dtolnay/rust-toolchain"],
+      "enabled": false
+    }
+  ]
+}
