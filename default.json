@@ -85,6 +85,38 @@
       "minimumReleaseAge": "7 days"
     },
     {
+      "description": [
+        "Security fixes that need a MAJOR bump get a human in the loop, without losing the fast lane.",
+        "The obvious mechanism — dependencyDashboardApproval — cannot be used here, and the reason is",
+        "worth writing down because the config reads as if it should work. Renovate turns every alert",
+        "into a synthetic packageRule (vulnerabilityToPackageRules) appended to the END of",
+        "packageRules, carrying the whole vulnerabilityAlerts object in that rule's `force` key, and",
+        "mergeChildConfig ends with `{ ...config, ...config.force }` — so force is re-stamped after",
+        "every later merge. dependencyDashboardApproval:false is one of Renovate's OWN built-in",
+        "vulnerabilityAlerts defaults, so it sits in force even when this file never mentions it, and",
+        "no packageRule at any level can flip it. That is why the :manual tier's majors-wait rule",
+        "applied its `major` label to the astro v7 security PR while its dependencyDashboardApproval",
+        "silently did not take effect.",
+        "draftPR, reviewers and addLabels are NOT vulnerabilityAlerts keys, so force does not carry",
+        "them and they survive. The PR is still raised immediately — this gates the MERGE, not the",
+        "creation, which is deliberate: a CVE should never sit invisible behind a checkbox.",
+        "MAINTENANCE HAZARD: isVulnerabilityAlert is an internal Renovate field. It does not appear",
+        "in renovate-schema.json, and this rule only matches on the second applyPackageRules pass",
+        "(the synthetic alert rule that sets the flag is appended after this one, and the rules array",
+        "is snapshotted per pass). renovate-config-validator therefore CANNOT detect it silently",
+        "breaking. Re-test on every Renovate major upgrade. Verified against renovate 44.29.5:",
+        "major+security -> draftPR true; patch/minor+security -> unchanged, prCreation immediate and",
+        "minimumReleaseAge null; major non-security -> unchanged, dependencyDashboardApproval true.",
+        "The documented alternative, $exists(vulnerabilityFixVersion), only fires on the GitHub",
+        "Dependabot path and would miss the osvVulnerabilityAlerts source this config also enables."
+      ],
+      "matchJsonata": ["isVulnerabilityAlert = true"],
+      "matchUpdateTypes": ["major"],
+      "draftPR": true,
+      "addLabels": ["security-major"],
+      "reviewers": ["krtffl"]
+    },
+    {
       "description": "0.x minors are breaking under semver — treat them like majors: ungrouped, own PR.",
       "matchCurrentVersion": "/^0\\./",
       "matchUpdateTypes": ["minor"],
