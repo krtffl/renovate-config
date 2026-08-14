@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Renovate is disabled for this repo (renovate.json), so nothing here bumps the
+  # validator's own version — and the presets are consumed by the hosted Renovate
+  # app, which always runs `latest`. A weekly run therefore surfaces upstream
+  # breakage (a removed option, a renamed key, a required config migration) on its
+  # own schedule instead of on whoever happens to push next. The nine consuming
+  # repos would otherwise inherit a broken preset silently.
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+# Read-only: this workflow only ever reads the repo and runs a validator.
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: validate presets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # The glob is deliberate: a new preset file is picked up without editing this
+      # workflow, so adding one can never silently escape validation.
+      #
+      # Both modes are checked because these files are used both ways. `--strict`
+      # global mode catches unknown top-level keys; `--no-global` repo mode is how
+      # the hosted app actually reads them when a repo extends the preset. A file
+      # can pass one and fail the other.
+      - name: validate as global config
+        run: npx --yes --package renovate@latest -- renovate-config-validator --strict *.json
+
+      - name: validate as repo config
+        run: npx --yes --package renovate@latest -- renovate-config-validator --no-global *.json
