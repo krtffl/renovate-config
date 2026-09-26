@@ -56,6 +56,26 @@ Two independent feeds drive that lane:
   replacement: it will not see the transitive `brace-expansion` and `undici` findings that GitHub
   surfaces today.
 
+### What neither feed fixes: transitive npm dependencies
+
+A GitHub alert only becomes a PR if Renovate has *extracted* the vulnerable package, and the npm
+manager extracts from `package.json` alone — `dependencies`, `devDependencies`, `overrides`. A
+package that exists only in `package-lock.json` is never a Renovate dependency, so its alert
+matches nothing and no PR is raised, silently. Measured 2026-09-25: roma-aeterna's alert for
+`devalue` (pulled in by astro) sat open a week with no PR, and a `--dry-run=extract` of that
+commit listed 17 npm dependencies, none of them devalue. yodidac had nine such alerts.
+
+- Anything pinned through `overrides` **is** covered — Renovate reads overrides as dependencies.
+- `transitiveRemediation` is not the answer: it was removed in Renovate v38 and now fails
+  `renovate-config-validator --strict`.
+- Upstream is building it (renovatebot/renovate#46377, #46391): lockfile-only fixes for
+  transitive alerts under `rangeStrategy: update-lockfile`, which `vulnerabilityAlerts` here
+  already sets. Re-check when it ships; it may land behind a new option.
+
+Until then, fix a transitive alert by hand: `npm update <pkg>` when the parent's range allows the
+patched version, or a scoped `overrides` entry when the parent pins it exactly. Ticking "lock file
+maintenance" on the repo's Dependency Dashboard covers the first case.
+
 Keeping Dependabot *alerts* on is what makes the fast lane work at all. It is a different feature
 from Dependabot *security updates* and Dependabot *version updates*, both of which must be off — see
 the runbook.
