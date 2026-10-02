@@ -42,5 +42,35 @@
       "matchDepNames": ["dtolnay/rust-toolchain"],
       "enabled": false
     }
-  ]
+  ],
+  "github-actions": {
+    "packageRules": [
+      {
+        "description": [
+          "wrangler pinned as an input of cloudflare/wrangler-action — `wranglerVersion: \"4.139.0\"` in",
+          "krtffl.dev — is extracted by this manager as depName `wrangler`, depType `uses-with`, from the",
+          "npm datasource. It is never automerged: the deploy step that uses it only runs on a push to",
+          "main, so a green pull_request check never executes wrangler and proves nothing about the new",
+          "version — the reasoning that keeps docker out of automerge. And wrangler 4 ships several",
+          "releases a week, each one a PR that burns metered Actions minutes, so it is held to the first",
+          "Monday of the month: one PR of its own, minor and patch together.",
+          "Its own group is required, not cosmetic. A branch takes its schedule from its first upgrade",
+          "and automerges only if every upgrade does, so left inside `github actions` this rule would",
+          "stop that whole group automerging while its own monthly schedule was ignored.",
+          "Nested under the manager key so that it is evaluated after the tier presets' packageRules:",
+          ":automerge and :automerge-ci switch automerge ON for every github-actions minor and patch,",
+          "and their rules are merged after this file's. As a top-level rule here it only moved the",
+          "schedule; automerge stayed true.",
+          "It cannot reach wrangler declared in a package.json — that is the npm manager, where wrangler",
+          "stays in the `cloudflare toolchain` group — nor any other input of any other action.",
+          "Verified against renovate 44.127.0 on a copy of krtffl.dev's two workflows."
+        ],
+        "matchDepNames": ["wrangler"],
+        "automerge": false,
+        "schedule": ["* 4-7 1-7 * 1"],
+        "groupName": "wrangler workflow pin",
+        "groupSlug": "wrangler-workflow-pin"
+      }
+    ]
+  }
 }

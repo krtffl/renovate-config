@@ -40,7 +40,8 @@ next run. To freeze a repo during a migration, pin it: `github>krtffl/renovate-c
 ## Cadence
 
 Routine updates run Mondays 04:00–07:59 Europe/Madrid, capped at 3 concurrent PRs and 2 per hour
-per repo. Lockfile refreshes run on the first Monday of the month.
+per repo. Lockfile refreshes run on the first Monday of the month, and so does a wrangler version
+pinned in a workflow (see [Grouping](#wrangler-pinned-in-a-workflow)).
 
 Security fixes ignore all of that. Renovate documents that a `vulnerabilityAlerts` PR bypasses
 `branchConcurrentLimit`, `commitHourlyLimit`, `prConcurrentLimit`, `prHourlyLimit` and `schedule` —
@@ -157,6 +158,49 @@ and majors are always split out.
 `config:recommended` brings `group:monorepos`, which keeps things like the Astro or AWS SDK families
 together across the grouping above.
 
+### wrangler pinned in a workflow
+
+krtffl.dev pins `wranglerVersion: "4.139.0"` as an input of `cloudflare/wrangler-action` in two
+workflows. Renovate's `github-actions` manager extracts that as depName `wrangler` (depType
+`uses-with`, npm datasource), and the generic rules treated it as one more CI action: grouped into
+`github actions`, weekly, automerged in both automerge tiers. Two things are wrong with that:
+
+- The step that uses it only runs on a push to `main`, so a pull request's green check never
+  executes wrangler. Automerging on that check is merging blind — the docker argument again.
+- wrangler 4 ships several releases a week (`4.139.0 → 4.143.0` when this was written), and every
+  PR costs metered Actions minutes.
+
+So `github-actions.json` gives it a group of its own, `wrangler workflow pin`: one PR, minor and
+patch together, on the first Monday of the month, never automerged in any tier. The separate group
+is required, not cosmetic — a branch takes its schedule from its first upgrade and automerges only
+if every upgrade does, so inside `github actions` the rule would have stopped that whole group
+automerging while its own monthly schedule was ignored.
+
+Read from Renovate's source, not measured: the schedule only gates *opening* that PR — once open
+it is still updated off-schedule (`updateNotScheduled` defaults to `true`) and, in both automerge
+tiers, rebased whenever `main` moves ahead of it (`rebaseWhen: behind-base-branch`), each a CI
+run, so the monthly cadence caps the cost only if the PR is merged promptly. The rule also has no
+`matchUpdateTypes`, so it matches a wrangler major too: same group name, schedule and
+no-automerge, in a PR of its own (`renovate/major-wrangler-workflow-pin` on Renovate `44.132.2`).
+
+The rule is nested under the `github-actions` manager key, and has to be. `…:automerge` and
+`…:automerge-ci` switch automerge on for every github-actions minor and patch, and their rules are
+merged after the fragment's: as a top-level rule this one moved the schedule and left
+`automerge: true`. Manager-level rules are evaluated after the whole top-level list. The side
+effect is that a repo's own top-level `packageRules` cannot override it either; a repo that
+disagrees says so under its own `github-actions.packageRules`.
+
+The matcher is the manager plus `matchDepNames: ["wrangler"]`, and nothing wider:
+
+- `wrangler` declared in a `package.json` (yodidac, la-ruina, didacperezescrich,
+  posteguillo_imperator, portfolio-mailer) belongs to the `npm` manager and is untouched — still
+  `cloudflare toolchain`, weekly, automerged as a devDependency where the tier allows it.
+- `cloudflare/wrangler-action` itself, every other action and every other version passed as an
+  action input keep their group, schedule and automerge.
+- krtffl.dev is the only repo that pins `wranglerVersion` to a literal (all 41 repos checked on
+  their default branch, 2026-10-02). posteguillo_imperator passes
+  `${{ steps.wrangler.outputs.version }}`, which Renovate skips as an invalid value.
+
 ## Commit messages
 
 `semanticCommits` is `enabled` explicitly rather than left on `auto`, because auto-detection samples
@@ -208,6 +252,8 @@ npm/cargo dependencies. Scope in Tier A-narrow: CI actions and dev-only npm pack
 Excluded from both, always: majors, 0.x minors, every security fix, and **everything docker,
 digests included** — no repo here builds its image on a `pull_request` (`mojodojo` and `casahouse`
 both gate `build-and-push` on the push/tag event), so a green PR says nothing about a new base layer.
+A wrangler version pinned in a workflow is excluded on the same grounds; see
+[wrangler pinned in a workflow](#wrangler-pinned-in-a-workflow).
 
 ### Repos that MUST NOT automerge
 
