@@ -67,10 +67,10 @@ matches nothing and no PR is raised, silently. Measured 2026-09-25: roma-aeterna
 commit listed 17 npm dependencies, none of them devalue. yodidac had nine such alerts.
 
 - Anything pinned through `overrides` **is** covered — Renovate reads overrides as dependencies —
-  but only inside the major the override pins; see the next section. The exception is an override
-  whose own key carries a version selector (`"undici@7.29.0": "7.29.1"`): Renovate skips it as
-  `invalid-name`, so it gets no update of any kind; a selector on a parent key
-  (`"miniflare@5.x": { "undici": … }`) is extracted normally.
+  but only inside the line the override pins (its major, or its minor in 0.x); see the next
+  section. The exception is an override whose own key carries a version selector
+  (`"undici@7.29.0": "7.29.1"`): Renovate skips it as `invalid-name`, so it gets no update of any
+  kind; a selector on a parent key (`"miniflare@5.x": { "undici": … }`) is extracted normally.
 - `transitiveRemediation` is not the answer: it was removed in Renovate v38 and now fails
   `renovate-config-validator --strict`.
 - Upstream is building it (renovatebot/renovate#46377, #46391): lockfile-only fixes for
@@ -85,13 +85,14 @@ Keeping Dependabot *alerts* on is what makes the fast lane work at all. It is a 
 from Dependabot *security updates* and Dependabot *version updates*, both of which must be off — see
 the runbook.
 
-### Overrides never move to a later major
+### Overrides never move to a later major, or to a later 0.x minor
 
-An `overrides` entry pins a transitive dependency on behalf of a parent that needs that major, so
-the next major of an override is never a valid update — the parent has to move first. `npm.json`
-drops every override update whose new major is above the one written in the override. Updates
-inside the override's major still arrive, security ones included, and ordinary dependencies are
-untouched.
+An `overrides` entry pins a transitive dependency on behalf of a parent that needs that line, so
+a bump out of the line is never a valid update — the parent has to move first. The line is the
+major, or the minor for an override written in 0.x, where under semver the minor is the breaking
+step. `npm.json` drops every override update whose new major is above the one written in the
+override, and every update of a 0.x override whose new minor is above the written one. Updates
+inside the line still arrive, security ones included, and ordinary dependencies are untouched.
 
 Measured 2026-10-02: yodidac #142 rewrote the `miniflare` > `undici` override from `^7.29.1` to
 `^8.0.0` as a `[SECURITY]` fix and went red at `npm ci`: the PR dropped undici 7.29.1 from the
@@ -122,24 +123,103 @@ Two things about the rule look odd and are deliberate. Both were measured with
 | to a later major, OSV alert | raised | **raised** | dropped |
 | inside its major, routine or security | raised | raised | raised |
 
+#### 0.x overrides
+
+The 0.x case is a second expression in the same rule — a rule matches when any of its
+`matchJsonata` expressions does. For an override whose value starts with `0.<minor>` it drops an
+update that is still 0.x and whose minor is above the written one; a jump to 1.x was already
+dropped by the major comparison. Measured 2026-10-02 with the same dry-runs on Renovate
+`44.132.2`. The OSV rows use osv.dev's own data. The GitHub rows use the local platform with its
+alert fetch stubbed to return alerts built from GHSA-px8p-9vwx-vf98 (fflate `>= 0.7.0, < 0.7.5`
+fixed in `0.7.5`, `>= 0.8.0, < 0.8.3` fixed in `0.8.3`); everything after the fetch is Renovate's
+own code.
+
+| 0.x override update | Before | 0.x expression in `packageRules` | Under `npm` |
+| --- | --- | --- | --- |
+| to a later minor, routine (`fflate ^0.7.4 → ^0.8.3`) | raised | dropped | dropped |
+| to a later minor, GitHub alert (`fflate ^0.7.4 → 0.8.3`) | raised | **raised** | dropped |
+| to a later minor, OSV alert (`axios 0.21.1 → 0.33.0`) | raised | **raised** | dropped |
+| inside its minor, security, either feed (`fflate 0.7.4 → 0.7.5`) | raised | raised | raised |
+| inside its minor, routine, no later minor published (`tmp ~0.2.1 → ~0.2.7`) | raised | raised | raised |
+| inside its minor, routine, a later minor published (`fflate ^0.7.4 → ^0.7.5`) | **never offered** | raised | raised |
+
+The last row is the second rule in `npm.json`, and without it the first one would have frozen the
+override. Renovate offers one non-major update per dependency, the highest, so an override at
+`0.6.0` with `0.6.1` and `0.8.0` published was only ever offered `0.8.0`; with that dropped and
+nothing else done, the 0.x overrides in the test fixture got no routine update at all. The second
+rule sets `separateMinorPatch` for an override written as `0.<minor>`, which makes the in-minor
+patch an update of its own. It is confined to the lookup by `$not($exists(newVersion))`: matched
+again when branches are built, it moved those patches out of `renovate/npm-non-major` into a
+second PR, `renovate/patch-npm-non-major`. With the guard they ride in the weekly `npm non-major`
+PR like any other patch.
+
+The line is read from the override's value alone, never from the lockfile. Every shape below was
+evaluated with the jsonata `2.2.1` that Renovate ships; the ones marked † were also run end to
+end:
+
+| Override value | Line read | What happens |
+| --- | --- | --- |
+| `^0.7.4`†, `0.7.4`†, `~0.7.4`†, `0.7.x`†, `^0.7`†, `>=0.7.4`†, `v0.7.4`, `=0.7.4` | 0.7 | 0.8 and later dropped, 0.7.x raised |
+| `^0.0.30`† | 0.0 | 0.1 and later dropped; a later 0.0.x is still raised as a patch |
+| `0`†, `^0`†, `0.x`† | no minor | free inside 0.x (`0 → 0.8.3` is raised); 1.x dropped |
+| `<=0.7`† | 0.7 | 0.8 and later dropped |
+| `<0.8`† | 0.8 | **not protected**: an update to 0.8.x is not dropped |
+| `>=0.7.4 <0.9.0`†, `0.7.x \|\| 0.8.x` | 0.7, the first version | 0.8.x dropped although the range admits it |
+| `$name`†, `latest`†, `*`†, empty | none | never matched |
+
+A version selector on a parent key (`"pkg@2.x": { "fflate": … }`†) and nested parents† change
+nothing: only the override's own value is read. `<0.8`, `<=0.7`, the two-sided range and `*` got
+no routine update at all (0.7.4 locked, 0.7.5 and 0.8.3 published); their rows were observed on
+the GitHub alert path, where the `0.8.3` alert moved `<0.8` (to `<0.9`), `*`, `0`, `^0` and `0.x`
+and was dropped for `<=0.7` and `>=0.7.4 <0.9.0`. `latest` and a `$name` reference are skipped as
+`unspecified-version`.
+
 What it costs:
 
 - The ordering is Renovate internals, not a documented contract, and the validator cannot see it
   break. Re-test on a Renovate major upgrade.
-- A repo's own `packageRules` cannot undo it, for the same reason. An override major that is really
-  wanted is re-enabled under that repo's `npm.packageRules`, or simply edited by hand.
+- A repo's own `packageRules` cannot undo it, for the same reason. An override major or 0.x minor
+  that is really wanted is re-enabled under that repo's `npm.packageRules` (measured for a 0.x
+  minor), or simply edited by hand.
 - **The gap: no config can make the GitHub path offer the in-major fix.** While an alert for a
   *later* major of the same package is open, Renovate asks for that major's fix for the override
   too, so the override gets no PR at all — not even the in-major fix it may itself need. The
   Dependabot alert stays open and is the signal: fix the override by hand. Once only in-major
   alerts remain, the in-major security PR is raised as usual.
+- **The same gap in 0.x, measured on both feeds.** GitHub: with the `0.7.5` and the `0.8.3` fflate
+  alerts both open, an override at `^0.7.4` got no PR; with only the `0.7.5` one it got the
+  `0.7.5` fix. OSV: one rule per advisory and the highest fix wins, so an override at axios
+  `0.21.1` was asked for `0.33.0` and got no PR — not the in-minor `0.21.4` either, which the
+  same override is offered as a routine patch with OSV switched off.
 - The mislabelling is still there for what does get through: in the la-ruina shape the in-major
-  update arrives labelled `major`, and in `…:manual` it waits on the dashboard like one.
-- A 0.x minor of an override (`fflate ^0.7.5 → ^0.8.3`) is not a major. It is still proposed,
-  labelled `breaking-0x`.
-- The major is read as the first number in the override's value, so a range written only as an
-  exclusive upper bound on the next major is not protected: for `<8` that number is 8, and an
-  update to 8.x is not dropped (`<=7` is protected).
+  update arrives labelled `major`, and in `…:manual` it waits on the dashboard like one. The 0.x
+  version of that shape is an override at `^0.7.4` under a hoisted fflate `0.8.2`: the in-minor
+  `0.7.5` arrives labelled `minor`, so `breaking-0x` and a PR of its own. Before the 0.x block
+  the same override was moved to `^0.8.3` labelled *patch*, inside `npm non-major`, with
+  `automerge: true` in `…:automerge`.
+- An in-minor patch of a 0.x override is a patch like any other: in `…:automerge` it carries
+  `automerge: true`.
+- An override that mirrors a direct 0.x dependency is split from it. Measured 2026-10-03 with
+  sharp under both `dependencies` and `overrides` and OSV switched off: at `^0.34.5` the
+  `^0.35.5` PR moved the dependency alone, where before the 0.x block it moved both, and at
+  `^0.34.4` `npm non-major` also moved the override alone, to `^0.34.5`. npm refuses either pair,
+  a red PR: `npm install` with `EOVERRIDE`
+  (`Override for sharp@^0.35.5 conflicts with direct dependency`), `npm ci` with a usage error
+  that blames the lockfile. Written as `"sharp": "$sharp"` the override follows the dependency.
+- An override written as a range, for a package with no top-level `node_modules/<name>` entry in
+  the lockfile, has no version Renovate can check before the lookup. The OSV rule then attaches
+  only afterwards and labels whatever the routine lookup chose, and with the second rule that is
+  the in-minor patch: tmp `^0.0.30`, whose advisories are fixed in `0.2.4` and `0.2.6`, was raised
+  as `^0.0.33` on the security lane (`renovate/npm-tmp-vulnerability`, no quarantine) although
+  `0.0.33` fixes neither. Before the 0.x block the same lane carried `^0.2.7`. No 0.x override in
+  yodidac, didacperezescrich, roma-aeterna or la-ruina is in that state today.
+- An override written as `0`, `^0` or `0.x` names no minor and still moves inside 0.x, labelled
+  `breaking-0x`. In the 0.0.x line every release may break, and the rule does not treat a patch
+  as breaking: on the routine path an override at `^0.0.30` is still offered `0.0.33`.
+- The line is read as the first number in the override's value (the first two for 0.x), so a range
+  written only as an exclusive upper bound on the next line is not protected: for `<8` that
+  number is 8, and an update to 8.x is not dropped (`<=7` is protected); `<0.8` and 0.8.x
+  likewise.
 
 ## Grouping
 
@@ -153,7 +233,8 @@ and majors are always split out.
 - Majors are ungrouped, labelled `major`, and quarantined 7 days.
 - **0.x minors are ungrouped and labelled `breaking-0x`.** Under semver a `0.x` minor may break, and
   Renovate classifies it as `minor`. This matters here: most of the Rust crates in `logmole`,
-  `stintlab`, `tablero` and `mcp-servers` are pre-1.0.
+  `stintlab`, `tablero` and `mcp-servers` are pre-1.0. The exception is an npm `overrides` entry:
+  its 0.x minor is not proposed at all ([0.x overrides](#0x-overrides)).
 
 `config:recommended` brings `group:monorepos`, which keeps things like the Astro or AWS SDK families
 together across the grouping above.

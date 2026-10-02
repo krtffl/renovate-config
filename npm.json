@@ -64,9 +64,11 @@
     "packageRules": [
       {
         "description": [
-          "An `overrides` entry pins a transitive on behalf of a parent that needs that major (miniflare",
-          "pins undici 7.x exactly), so a MAJOR bump of an override is never a valid update — the parent",
-          "has to move first. Minor and patch updates of an override, security ones included, still flow.",
+          "An `overrides` entry pins a transitive on behalf of a parent that needs that line (miniflare",
+          "pins undici 7.x exactly, satori pins fflate 0.7.3 exactly), so a bump out of the line is never",
+          "a valid update — the parent has to move first. Out of the line means a later MAJOR, or, for an",
+          "override written in 0.x, a later MINOR: under semver that is the breaking step there. Updates",
+          "inside the line, security ones included, still flow.",
           "This rule sits under the `npm` manager key instead of in the packageRules above, and that",
           "placement is the whole mechanism. Renovate turns every vulnerability alert — GitHub Dependabot",
           "and OSV alike — into a synthetic packageRule appended to the END of the top-level packageRules,",
@@ -87,17 +89,41 @@
           "the parent the override is scoped to. la-ruina pins miniflare > undici at 7.29.1 while an",
           "unrelated undici 8.11.0 is hoisted to the top level, so Renovate calls 7.29.1 -> 8.x a PATCH",
           "and 7.29.1 -> 7.30.0 a MAJOR — exactly inverted, and `matchUpdateTypes: [\"major\"]` would have",
-          "dropped the safe one and let the breaking one through. The expression is undefined, so no",
-          "match, on the pre-lookup pass (no newMajor yet) and for a `$name` reference (no digits).",
+          "dropped the safe one and let the breaking one through. The second expression is the 0.x case,",
+          "read the same way: when the override's value starts with `0.<minor>` and the new version is",
+          "still 0.x, it compares newMinor with that written minor. `0`, `^0` and `0.x` name no minor",
+          "and stay free to move inside 0.x. Neither expression matches on the pre-lookup pass (no",
+          "newMajor yet) or for a `$name` reference (no digits).",
           "MAINTENANCE HAZARD: the ordering is Renovate internals, not a documented contract, and",
           "renovate-config-validator cannot detect it breaking. Re-test on every Renovate major upgrade.",
           "Verified against renovate 44.127.0 on both alert paths: override to a later major, security",
           "or not -> dropped; override update inside its major, security or not -> unchanged; security",
-          "major of an ordinary dependency -> unchanged (draft PR, security-major)."
+          "major of an ordinary dependency -> unchanged (draft PR, security-major).",
+          "Verified against renovate 44.132.2 on both alert paths: 0.x override to a later minor,",
+          "security or not -> dropped; 0.x override update inside its minor, security or not -> raised;",
+          "0.x minor of an ordinary dependency, security or not -> unchanged (own PR, breaking-0x)."
         ],
         "matchDepTypes": ["overrides"],
-        "matchJsonata": ["newMajor > $number($match(currentValue, /[0-9]+/)[0].match)"],
+        "matchJsonata": [
+          "newMajor > $number($match(currentValue, /[0-9]+/)[0].match)",
+          "newMajor = 0 and newMinor > $number($match(currentValue, /^[^0-9]*0\\.([0-9]+)/)[0].groups[0])"
+        ],
         "enabled": false
+      },
+      {
+        "description": [
+          "Keeps the in-minor patch of a 0.x override alive. Renovate offers one non-major update per",
+          "dependency, the highest: for an override at 0.6.0 with 0.6.1 and 0.8.0 published that is",
+          "0.8.0, the rule above drops it, and 0.6.1 is never proposed. separateMinorPatch makes the",
+          "lookup offer the patch as an update of its own. The JSONata confines this rule to the lookup,",
+          "where there is no newVersion yet: matched again when branches are built, it moves that patch",
+          "out of `renovate/npm-non-major` into a second PR, `renovate/patch-npm-non-major`.",
+          "Verified against renovate 44.132.2, each half by removing it."
+        ],
+        "matchDepTypes": ["overrides"],
+        "matchCurrentValue": "/^[^0-9]*0\\.[0-9]/",
+        "matchJsonata": ["$not($exists(newVersion))"],
+        "separateMinorPatch": true
       }
     ]
   }
