@@ -65,7 +65,11 @@ matches nothing and no PR is raised, silently. Measured 2026-09-25: roma-aeterna
 `devalue` (pulled in by astro) sat open a week with no PR, and a `--dry-run=extract` of that
 commit listed 17 npm dependencies, none of them devalue. yodidac had nine such alerts.
 
-- Anything pinned through `overrides` **is** covered — Renovate reads overrides as dependencies.
+- Anything pinned through `overrides` **is** covered — Renovate reads overrides as dependencies —
+  but only inside the major the override pins; see the next section. The exception is an override
+  whose own key carries a version selector (`"undici@7.29.0": "7.29.1"`): Renovate skips it as
+  `invalid-name`, so it gets no update of any kind; a selector on a parent key
+  (`"miniflare@5.x": { "undici": … }`) is extracted normally.
 - `transitiveRemediation` is not the answer: it was removed in Renovate v38 and now fails
   `renovate-config-validator --strict`.
 - Upstream is building it (renovatebot/renovate#46377, #46391): lockfile-only fixes for
@@ -79,6 +83,62 @@ maintenance" on the repo's Dependency Dashboard covers the first case.
 Keeping Dependabot *alerts* on is what makes the fast lane work at all. It is a different feature
 from Dependabot *security updates* and Dependabot *version updates*, both of which must be off — see
 the runbook.
+
+### Overrides never move to a later major
+
+An `overrides` entry pins a transitive dependency on behalf of a parent that needs that major, so
+the next major of an override is never a valid update — the parent has to move first. `npm.json`
+drops every override update whose new major is above the one written in the override. Updates
+inside the override's major still arrive, security ones included, and ordinary dependencies are
+untouched.
+
+Measured 2026-10-02: yodidac #142 rewrote the `miniflare` > `undici` override from `^7.29.1` to
+`^8.0.0` as a `[SECURITY]` fix and went red at `npm ci`: the PR dropped undici 7.29.1 from the
+lockfile and added no 8.x entry for miniflare, so npm refused the lockfile as out of sync
+(`Missing: undici@8.11.2 from lock file`) and lint, build and tests were skipped. The override was
+already patched. A second, 8.x copy of undici elsewhere in the lockfile still had open alerts, and
+on the GitHub path Renovate folds every alert for a package into one rule that asks for the
+**highest** first-patched version (`8.10.2`) and applies it to every copy below it.
+
+Two things about the rule look odd and are deliberate. Both were measured with
+`--platform=local --dry-run=lookup` on Renovate `44.127.0`, not assumed:
+
+- **It sits under the `npm` manager key, not in `packageRules`.** An alert becomes a synthetic rule
+  appended after the top-level `packageRules` with `enabled: true` in its `force` key, so the same
+  rule in the top-level list stops routine override majors and is switched back on for security
+  ones, on both feeds. Manager-level rules are evaluated after the synthetic one.
+- **It compares majors itself instead of using `matchUpdateTypes: ["major"]`.** Renovate reads an
+  override's locked version from the top-level `node_modules/<name>` lockfile entry, whichever
+  parent the override is scoped to. la-ruina pins `miniflare` > `undici` at `7.29.1` while an
+  unrelated undici `8.11.0` is hoisted to the top level, so Renovate labels `7.29.1 → 8.11.2` a
+  *patch* — bound for the weekly `npm non-major` PR — and `7.29.1 → 7.30.0` a *major*.
+  `matchUpdateTypes` dropped the safe one and kept the breaking one.
+
+| Override update | Before | Same rule in `packageRules` | Rule under `npm` |
+| --- | --- | --- | --- |
+| to a later major, routine | raised | dropped | dropped |
+| to a later major, GitHub alert | raised | **raised** | dropped |
+| to a later major, OSV alert | raised | **raised** | dropped |
+| inside its major, routine or security | raised | raised | raised |
+
+What it costs:
+
+- The ordering is Renovate internals, not a documented contract, and the validator cannot see it
+  break. Re-test on a Renovate major upgrade.
+- A repo's own `packageRules` cannot undo it, for the same reason. An override major that is really
+  wanted is re-enabled under that repo's `npm.packageRules`, or simply edited by hand.
+- **The gap: no config can make the GitHub path offer the in-major fix.** While an alert for a
+  *later* major of the same package is open, Renovate asks for that major's fix for the override
+  too, so the override gets no PR at all — not even the in-major fix it may itself need. The
+  Dependabot alert stays open and is the signal: fix the override by hand. Once only in-major
+  alerts remain, the in-major security PR is raised as usual.
+- The mislabelling is still there for what does get through: in the la-ruina shape the in-major
+  update arrives labelled `major`, and in `…:manual` it waits on the dashboard like one.
+- A 0.x minor of an override (`fflate ^0.7.5 → ^0.8.3`) is not a major. It is still proposed,
+  labelled `breaking-0x`.
+- The major is read as the first number in the override's value, so a range written only as an
+  exclusive upper bound on the next major is not protected: for `<8` that number is 8, and an
+  update to 8.x is not dropped (`<=7` is protected).
 
 ## Grouping
 

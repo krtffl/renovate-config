@@ -59,5 +59,46 @@
       "matchDepTypes": ["devDependencies"],
       "semanticCommitType": "chore"
     }
-  ]
+  ],
+  "npm": {
+    "packageRules": [
+      {
+        "description": [
+          "An `overrides` entry pins a transitive on behalf of a parent that needs that major (miniflare",
+          "pins undici 7.x exactly), so a MAJOR bump of an override is never a valid update — the parent",
+          "has to move first. Minor and patch updates of an override, security ones included, still flow.",
+          "This rule sits under the `npm` manager key instead of in the packageRules above, and that",
+          "placement is the whole mechanism. Renovate turns every vulnerability alert — GitHub Dependabot",
+          "and OSV alike — into a synthetic packageRule appended to the END of the top-level packageRules,",
+          "with the whole vulnerabilityAlerts object in its `force` key, and that object carries",
+          "`enabled: true` (the base preset sets it, and so does security:gomodIndirectSecurityUpdates).",
+          "The same rule placed in the top-level list therefore stops routine override majors and is",
+          "switched back on for security ones — measured, not assumed. getManagerConfig() concatenates",
+          "manager-level packageRules AFTER the top-level list, so from here the rule runs after the",
+          "alert rule: force still re-stamps `enabled: true`, but the `package-rules` skipReason this",
+          "rule sets survives, and flattenUpdates() drops every update that carries a skipReason.",
+          "Written for yodidac #142, which rewrote the miniflare > undici override from ^7.29.1 to ^8.0.0",
+          "as a security fix. That override was already patched; an 8.x copy of undici elsewhere in the",
+          "lockfile still had open alerts, and the GitHub path asks for the HIGHEST first-patched version",
+          "across all of a package's alerts (it matched the override with matchCurrentVersion `< 8.10.2`).",
+          "The match compares newMajor with the major written in the override itself instead of using",
+          "matchUpdateTypes, because Renovate's update type cannot be trusted for an override: it reads",
+          "the override's lockedVersion from the top-level `node_modules/<name>` lockfile entry, ignoring",
+          "the parent the override is scoped to. la-ruina pins miniflare > undici at 7.29.1 while an",
+          "unrelated undici 8.11.0 is hoisted to the top level, so Renovate calls 7.29.1 -> 8.x a PATCH",
+          "and 7.29.1 -> 7.30.0 a MAJOR — exactly inverted, and `matchUpdateTypes: [\"major\"]` would have",
+          "dropped the safe one and let the breaking one through. The expression is undefined, so no",
+          "match, on the pre-lookup pass (no newMajor yet) and for a `$name` reference (no digits).",
+          "MAINTENANCE HAZARD: the ordering is Renovate internals, not a documented contract, and",
+          "renovate-config-validator cannot detect it breaking. Re-test on every Renovate major upgrade.",
+          "Verified against renovate 44.127.0 on both alert paths: override to a later major, security",
+          "or not -> dropped; override update inside its major, security or not -> unchanged; security",
+          "major of an ordinary dependency -> unchanged (draft PR, security-major)."
+        ],
+        "matchDepTypes": ["overrides"],
+        "matchJsonata": ["newMajor > $number($match(currentValue, /[0-9]+/)[0].match)"],
+        "enabled": false
+      }
+    ]
+  }
 }
